@@ -77,7 +77,7 @@ def softmax_loss_vectorized(W, X, y, reg):
 
   # loss
   b = np.zeros((N,C))
-  b[np.arange(N), y] = 1
+  b[np.arange(N), y] = 1 #one-hot encoding
   
   loss = np.mean(-np.sum(b * np.log(normalized_score), axis=1))
     
