@@ -179,7 +179,17 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # variance, storing your result in the running_mean and running_var   #
         # variables.                                                          #
         #######################################################################
-        pass
+        sample_mean = x.mean(axis=0)
+        sample_var = np.square(x.std(axis=0))
+        sample_std = np.sqrt(sample_var + eps)
+        
+        out = (x - sample_mean) / sample_std
+        out = gamma * out + beta
+        
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+        
+        cache = (x, sample_mean, sample_var, sample_std, gamma)
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -190,7 +200,8 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        out = (x - running_mean) / np.sqrt(running_var)
+        out = gamma * out + beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -221,12 +232,30 @@ def batchnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
+    
+    N, D = dout.shape
+    x, sample_mean, sample_var, sample_std, gamma = cache
     dx, dgamma, dbeta = None, None, None
     ###########################################################################
     # TODO: Implement the backward pass for batch normalization. Store the    #
     # results in the dx, dgamma, and dbeta variables.                         #
     ###########################################################################
-    pass
+    inv_std = 1 / sample_std
+    zero_center = x - sample_mean
+    
+    dnormalized = dout * gamma
+    dzero_center = dnormalized * inv_std # dLoss/d(x-mean)
+    dinv_std = np.sum(dnormalized * (zero_center), 0)
+    dsample_std = - dinv_std * np.power(inv_std, 2)
+    dsample_var = dsample_std * (1 / (2 * sample_std))
+    dsquare_z = np.ones((N,D)) * dsample_var * 1/N
+    dzero_center += 2 * (zero_center) * dsquare_z
+    dsample_mean = np.sum(dzero_center, 0)
+    dx = dzero_center
+    dx -= np.ones((N,D)) * dsample_mean * 1/N
+    
+    dgamma = np.sum((zero_center * inv_std) * dout, 0)
+    dbeta = np.sum(np.ones(D) * dout, 0)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -406,7 +435,7 @@ def max_pool_forward_naive(x, pool_param):
     Inputs:
     - x: Input data, of shape (N, C, H, W)
     - pool_param: dictionary with the following keys:
-      - 'pool_height': The height of each pooling region
+      - 'pool_height': The   of each pooling region
       - 'pool_width': The width of each pooling region
       - 'stride': The distance between adjacent pooling regions
 

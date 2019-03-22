@@ -229,7 +229,6 @@ class Solver(object):
         - acc: Scalar giving the fraction of instances that were correctly
           classified by the model.
         """
-
         # Maybe subsample the data
         N = X.shape[0]
         if num_samples is not None and N > num_samples:
@@ -260,7 +259,7 @@ class Solver(object):
         """
         num_train = self.X_train.shape[0]
         iterations_per_epoch = max(num_train // self.batch_size, 1)
-        num_iterations = self.num_epochs * iterations_per_epoch
+        num_iterations = self.num_epochs * iterations_per_epoch  #200
 
         for t in range(num_iterations):
             self._step()
@@ -282,6 +281,7 @@ class Solver(object):
             # iteration, and at the end of each epoch.
             first_it = (t == 0)
             last_it = (t == num_iterations - 1)
+
             if first_it or last_it or epoch_end:
                 train_acc = self.check_accuracy(self.X_train, self.y_train,
                     num_samples=self.num_train_samples)
@@ -294,13 +294,14 @@ class Solver(object):
                 if self.verbose:
                     print('(Epoch %d / %d) train acc: %f; val_acc: %f' % (
                            self.epoch, self.num_epochs, train_acc, val_acc))
-
                 # Keep track of the best model
                 if val_acc > self.best_val_acc:
                     self.best_val_acc = val_acc
                     self.best_params = {}
                     for k, v in self.model.params.items():
                         self.best_params[k] = v.copy()
-
+                
         # At the end of training swap the best params into the model
         self.model.params = self.best_params
+
+

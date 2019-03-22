@@ -182,8 +182,8 @@ class FullyConnectedNet(object):
         ############################################################################
         for layer in range(self.num_layers):
             if layer == 0:
-                self.params['W1'] = np.random.randn(input_dim, hidden_dims[layer]) * weight_scale
-                self.params['b1'] = np.zeros(hidden_dims[layer])
+                self.params['W1'] = np.random.randn(input_dim, hidden_dims[0]) * weight_scale
+                self.params['b1'] = np.zeros(hidden_dims[0])
                 
             elif layer < self.num_layers-1:
                 self.params['W'+str(layer+1)] = np.random.randn(hidden_dims[layer-1], hidden_dims[layer]) * weight_scale
@@ -192,6 +192,10 @@ class FullyConnectedNet(object):
             else:
                 self.params['W'+str(layer+1)] = np.random.randn(hidden_dims[layer-1], num_classes) * weight_scale
                 self.params['b'+str(layer+1)] = np.zeros(num_classes)
+            
+            if use_batchnorm and layer < self.num_layers-1:
+                self.params['gamma'+str(layer+1)] = np.ones(hidden_dims[layer])
+                self.params['beta'+str(layer+1)] = np.zeros(hidden_dims[layer])
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -238,6 +242,7 @@ class FullyConnectedNet(object):
 
         scores = None
         cache = []
+        bn_cache = []
         ############################################################################
         # TODO: Implement the forward pass for the fully-connected net, computing  #
         # the class scores for X and storing them in the scores variable.          #
@@ -251,21 +256,25 @@ class FullyConnectedNet(object):
         # layer, etc.                                                              #
         ############################################################################
         for layer in range(self.num_layers):
-            if layer < self.num_layers - 1:
-                w = self.params['W'+str(layer+1)]
-                b = self.params['b'+str(layer+1)]
+            w, b = self.params['W'+str(layer+1)], self.params['b'+str(layer+1)]
 
             if layer == 0:
                 a, c = affine_relu_forward(X, w, b)
                 cache.append(c)
-                print(np.array(cache).shape)
             
             elif layer < self.num_layers - 1:
                 a, c = affine_relu_forward(a, w, b)
                 cache.append(c)
             
             else:
-                scores, _ = affine_forward(a, w, b)
+                scores, c = affine_forward(a, w, b)
+                cache.append(c)
+            
+            if self.use_batchnorm and layer < self.num_layers-1:
+                gamma = self.params['gamma'+str(layer+1)]
+                beta = self.params['beta'+str(layer+1)]
+                a, bc = batchnorm_forward(a, gamma, beta, self.bn_params[layer])
+                bn_cache.append(bc)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -288,9 +297,28 @@ class FullyConnectedNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
+        loss, dscores = softmax_loss(scores, y)
         
+        for layer in range(self.num_layers, 0, -1):
+            w_str = 'W'+str(layer)
+            b_str = 'b'+str(layer)
+            gamma_str = 'gamma'+str(layer)
+            beta_str = 'beta'+str(layer)
+            w = self.params[w_str]
+            
+            loss += 0.5 * self.reg * np.sum(w**2)
+            
+            if self.use_batchnorm and layer < self.num_layers:
+                dx, grads[gamma_str], grads[beta_str] = batchnorm_backward(dx, bn_cache[layer-1])
+                
+            if layer == self.num_layers:
+                dx, grads[w_str], grads[b_str] = affine_backward(dscores, cache[layer-1])
+
+            else :
+                dx, grads[w_str], grads[b_str] = affine_relu_backward(dx, cache[layer-1])
+
+            grads[w_str] += self.reg * w
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
-
         return loss, grads
